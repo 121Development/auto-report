@@ -3,15 +3,15 @@
 Source of truth: [docs/spec-v0.2.md](docs/spec-v0.2.md). Each milestone is shippable and testable on its own.
 
 ## M1 Foundation
-- [ ] TanStack Start (React, TS) on Cloudflare Workers, pnpm 12 with supply-chain hardening
-- [ ] `wrangler.jsonc` with D1 (`DB`) and R2 (`FILES`) bindings; deploy script with frozen lockfile + audit gate
-- [ ] D1 schema: `documents`, `versions` (editor JSON is canonical)
-- [ ] TipTap editor: every top-level block is a section with a hidden stable ID
-- [ ] Gutter: live flat numbering, hover/selected action icon (stub)
-- [ ] Selection: click number = section; second click on a heading = heading group (to next heading of any level)
-- [ ] Markdown import/export; live-preview / raw Markdown toggle
-- [ ] Autosave: debounced to D1 + IndexedDB mirror; newer copy wins on reopen
-- [ ] Routes: `/` document list, `/doc/$id` editor
+- [x] TanStack Start (React, TS) on Cloudflare Workers, pnpm 12 with supply-chain hardening
+- [x] `wrangler.jsonc` with D1 (`DB`) and R2 (`FILES`) bindings; deploy script with frozen lockfile + audit gate
+- [x] D1 schema: `documents`, `versions` (editor JSON is canonical)
+- [x] TipTap editor: every top-level block is a section with a hidden stable ID
+- [x] Gutter: live flat numbering, hover/selected action icon (stub)
+- [x] Selection: click number = section; second click on a heading = heading group (to next heading of any level)
+- [x] Markdown import/export; live-preview / raw Markdown toggle
+- [x] Autosave: debounced to D1 + IndexedDB mirror; newer copy wins on reopen
+- [x] Routes: `/` document list, `/doc/$id` editor
 
 ## M2 AI action engine
 - [ ] One `ActionRequest` type shared by all entry points

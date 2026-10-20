@@ -1,0 +1,11 @@
+# pnpm-workspace.yaml: supply-chain hardening (see docs/spec-v0.2.md, "Dependency security").
+# Do not change these settings without asking. See AGENTS.md.
+minimumReleaseAge: 10080        # 7 days before a newly published version can be installed
+minimumReleaseAgeExclude: []    # exact patched versions, for urgent security fixes only
+trustPolicy: no-downgrade       # refuse a version whose publishing trust dropped
+trustPolicyIgnoreAfter: 525600  # skip the trust check for versions older than 1 year
+blockExoticSubdeps: true        # transitive deps only from the registry, never git or tarball URLs
+strictDepBuilds: true           # fail install on any unreviewed build script
+allowBuilds:                    # approve build scripts one package at a time
+  esbuild: true
+  workerd: true

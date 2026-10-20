@@ -15,6 +15,11 @@ Section Editor: a personal, Markdown-native writing app where every block is a n
 - `pnpm typecheck`
 - `pnpm run deploy`: frozen-lockfile install, audit gate, `wrangler deploy`
 
+## First deploy
+1. `wrangler login`
+2. `wrangler d1 create section-editor` and put the id in `wrangler.jsonc`; `wrangler r2 bucket create section-editor-files`
+3. `pnpm db:migrate:remote`, then `pnpm run deploy`
+
 ## Invariants
 - Editor JSON is the canonical stored format. Markdown is for import and export only.
 - Every top-level block is one section and carries a unique `sectionId` attribute. Never address a section by its visible number in stored data or AI edits; resolve numbers to IDs at the moment a prompt fires.
