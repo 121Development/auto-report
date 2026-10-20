@@ -14,11 +14,13 @@ Source of truth: [docs/spec-v0.2.md](docs/spec-v0.2.md). Each milestone is shipp
 - [x] Routes: `/` document list, `/doc/$id` editor
 
 ## M2 AI action engine
-- [ ] One `ActionRequest` type shared by all entry points
-- [ ] Deterministic section-reference parser ("section 4", "sections 2 to 5"), resolved to stable IDs at fire time
-- [ ] `DecisionModel` interface; Jev adapter via `@tanstack/ai-typesafe` (action type, target scope, context needed, model size); Clef swap = config change
-- [ ] Low target confidence → "Which section?" prompt
-- [ ] Claude via Cloudflare AI Gateway; Haiku / Sonnet auto-pick, document-level override incl. Opus
+- [x] One `ActionRequest` type shared by all entry points
+- [x] Deterministic section-reference parser ("section 4", "sections 2 to 5"), resolved to stable IDs at fire time
+- [x] `DecisionModel` interface; Jev adapter via `@tanstack/ai-typesafe` (action type, target scope, context needed, model size); Clef swap = config change
+- [x] Low target confidence → "Which section?" prompt
+- [x] Claude via Cloudflare AI Gateway; Haiku / Sonnet auto-pick, document-level override incl. Opus
+
+- [x] Interim entry point to exercise the engine: gutter ✦ opens an instruction box; result previews, Apply replaces in one undo step (M3 turns this into tracked suggestions)
 
 ## M3 Entry points + track changes
 - [ ] `//` inline prompt (line start only, fired by Enter, line removed after, never exported)

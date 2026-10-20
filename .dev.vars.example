@@ -1,0 +1,6 @@
+# Copy to .dev.vars (gitignored) for local dev. In production: `wrangler secret put <NAME>`.
+ANTHROPIC_API_KEY=
+# Optional: without it, a keyword heuristic stands in for the Jev decision model.
+TYPESAFE_API_KEY=
+# Optional: only if the AI Gateway has authentication turned on.
+AI_GATEWAY_TOKEN=

@@ -2,10 +2,11 @@ import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import type { DocumentRecord } from '../lib/types'
+import { ActionBox } from './ActionBox'
 import { baseExtensions } from './extensions'
 import { Gutter } from './gutter'
 import { getLocal } from './local-store'
-import { listSections, reconcileSectionIds } from './sections'
+import { reconcileSectionIds } from './sections'
 import { useAutosave, type SaveStatus } from './use-autosave'
 
 const STATUS_LABEL: Record<SaveStatus, string> = {
@@ -68,12 +69,6 @@ export function Editor({ doc }: { doc: DocumentRecord }) {
     setRaw(null)
   }
 
-  const numbers = editor
-    ? listSections(editor.state.doc)
-        .filter((s) => (actionTarget ?? []).includes(s.id))
-        .map((s) => s.number)
-    : []
-
   return (
     <div className="editor-shell">
       <header className="topbar">
@@ -106,16 +101,8 @@ export function Editor({ doc }: { doc: DocumentRecord }) {
         )}
       </main>
 
-      {actionTarget && (
-        <div className="action-popover" role="dialog" aria-label="AI actions">
-          <p>
-            Section{numbers.length === 1 ? '' : 's'} {numbers.join(', ')}
-          </p>
-          <p className="muted">AI actions arrive in milestone 2.</p>
-          <button type="button" onClick={() => setActionTarget(null)}>
-            Close
-          </button>
-        </div>
+      {actionTarget && editor && (
+        <ActionBox editor={editor} doc={doc} targets={actionTarget} onClose={() => setActionTarget(null)} />
       )}
     </div>
   )

@@ -47,6 +47,20 @@ export function listSections(doc: PMNode): Section[] {
 }
 
 /**
+ * The empty paragraph TipTap keeps at the end of the document (so you can always
+ * click below the last block) isn't a section until you type in it.
+ */
+export function isTrailingPlaceholder(doc: PMNode, index: number): boolean {
+  const node = doc.child(index)
+  return (
+    index === doc.childCount - 1 &&
+    doc.childCount > 1 &&
+    node.type.name === 'paragraph' &&
+    node.content.size === 0
+  )
+}
+
+/**
  * A heading plus every section up to the next heading of any level, so an H2
  * group stops at its first H3. Returns just the section itself for non-headings.
  */

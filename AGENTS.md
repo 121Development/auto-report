@@ -15,10 +15,17 @@ Section Editor: a personal, Markdown-native writing app where every block is a n
 - `pnpm typecheck`
 - `pnpm run deploy`: frozen-lockfile install, audit gate, `wrangler deploy`
 
+## AI engine (`src/ai/`)
+- One `ActionRequest` from every entry point → `runAction` (`engine.ts`): parse section numbers (`section-refs.ts`) → decision model (`decision.ts`) → resolve targets (ask "Which section?" below 0.6 confidence) → Claude (`generate.ts`) → sanitized edits keyed by section ID.
+- Decision model: Jev via `@tanstack/ai-typesafe`. Swap to Clef by changing `DECISION_MODEL` / `DECISION_BASE_URL` in `wrangler.jsonc`. Without `TYPESAFE_API_KEY` a keyword heuristic stands in.
+- Generative model: Claude through Cloudflare AI Gateway (`CF_ACCOUNT_ID` + `AI_GATEWAY_ID`). Auto = Haiku 5.5 (fast) / Sonnet 5.5 (strong); the document setting can pin Haiku, Sonnet or Opus 5.5.
+- Secrets: copy `.dev.vars.example` to `.dev.vars` locally; `wrangler secret put ANTHROPIC_API_KEY` (and `TYPESAFE_API_KEY`) in production.
+
 ## First deploy
 1. `wrangler login`
 2. `wrangler d1 create section-editor` and put the id in `wrangler.jsonc`; `wrangler r2 bucket create section-editor-files`
-3. `pnpm db:migrate:remote`, then `pnpm run deploy`
+3. Create the AI Gateway `section-editor` in the Cloudflare dashboard; set secrets with `wrangler secret put`
+4. `pnpm db:migrate:remote`, then `pnpm run deploy`
 
 ## Invariants
 - Editor JSON is the canonical stored format. Markdown is for import and export only.

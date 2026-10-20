@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import { headingGroup, listSections, rangeBetween } from './sections'
+import { headingGroup, isTrailingPlaceholder, listSections, rangeBetween } from './sections'
 
 export interface GutterState {
   /** Selected section IDs, in document order. */
@@ -101,11 +101,7 @@ export const Gutter = Extension.create<GutterOptions>({
             const { selected } = gutterKey.getState(state) ?? EMPTY
             const decos: Decoration[] = []
             const sections = listSections(state.doc)
-            // The empty paragraph TipTap keeps at the end of the document isn't a section yet.
-            const last = state.doc.lastChild
-            if (sections.length > 1 && last?.type.name === 'paragraph' && last.content.size === 0) {
-              sections.pop()
-            }
+            if (isTrailingPlaceholder(state.doc, sections.length - 1)) sections.pop()
             for (const s of sections) {
               const isSelected = selected.includes(s.id)
               decos.push(

@@ -34,7 +34,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -262,21 +263,108 @@ button {
 .gutter:has(+ h2) > * { top: 1.65em; }
 .gutter:has(+ h3) > * { top: 1.2em; }
 
-.action-popover {
+.action-box {
   position: fixed;
   right: 1.5rem;
   bottom: 1.5rem;
-  width: 18rem;
-  padding: 1rem;
+  z-index: 20;
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: 0 8px 30px rgb(0 0 0 / 0.12);
-  font: 0.9rem ui-sans-serif, system-ui, sans-serif;
+  font: 0.9rem/1.5 ui-sans-serif, system-ui, sans-serif;
 }
 
-.action-popover p {
-  margin: 0 0 0.5rem;
+.action-box header,
+.action-box footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.action-box header span {
+  flex: 1;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.action-box footer .meta {
+  flex: 1;
+  font-size: 0.75rem;
+}
+
+.action-box textarea,
+.action-box input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 0.5rem;
+  resize: none;
+  outline: none;
+}
+
+.action-box textarea:focus,
+.action-box input:focus {
+  border-color: var(--accent);
+}
+
+.action-box button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.25rem 0.75rem;
+}
+
+.action-box button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.action-box button.icon {
+  border: 0;
+  padding: 0 0.25rem;
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.action-box p {
+  margin: 0;
+}
+
+.action-box .result {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.action-box pre {
+  margin: 0.2rem 0 0;
+  white-space: pre-wrap;
+  font: 0.95rem/1.55 ui-serif, Georgia, serif;
+}
+
+.action-box .suggestion {
+  margin-top: 0.2rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--accent);
+}
+
+.action-box .note {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.action-box .error {
+  color: #c2410c;
 }
 
 @media (max-width: 640px) {

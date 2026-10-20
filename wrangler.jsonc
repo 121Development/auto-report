@@ -5,6 +5,15 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
   "observability": { "enabled": true },
+  // Non-secret config. Secrets (ANTHROPIC_API_KEY, TYPESAFE_API_KEY, AI_GATEWAY_TOKEN) go in
+  // .dev.vars locally and `wrangler secret put` in production. See .dev.vars.example.
+  "vars": {
+    "CF_ACCOUNT_ID": "9ce2fa7a5be6718c1ef41f765d26261f",
+    "AI_GATEWAY_ID": "section-editor",
+    // Decision model. Swap to Clef by changing these two (Jev-compatible API).
+    "DECISION_MODEL": "jev-latest",
+    "DECISION_BASE_URL": ""
+  },
   "d1_databases": [
     {
       "binding": "DB",
