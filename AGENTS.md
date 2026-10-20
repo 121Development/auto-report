@@ -5,6 +5,7 @@ Section Editor: a personal, Markdown-native writing app where every block is a n
 ## Stack
 - TanStack Start (React, TypeScript) on Cloudflare Workers, pnpm 12
 - TipTap (ProseMirror) editor
+- UI: Lucide icons (`lucide-react`; plain `lucide` inside ProseMirror widgets), Radix Tooltip, Floating UI for anchored popovers; Inter + Source Serif 4 via Fontsource. Icon-only buttons go through `IconButton` (`src/lib/ui.tsx`) so they always have a label and tooltip.
 - D1 for documents and versions, R2 for files and images
 - Claude via Cloudflare AI Gateway (generative); Jev via `@tanstack/ai-typesafe` (decision)
 

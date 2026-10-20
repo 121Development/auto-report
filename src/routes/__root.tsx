@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { TooltipProvider } from '../lib/ui'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -25,7 +26,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Scripts />
       </body>
     </html>

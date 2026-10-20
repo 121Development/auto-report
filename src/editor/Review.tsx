@@ -1,16 +1,18 @@
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
+import { Check, CheckCheck, Eye, EyeOff, ListChecks, ListX, X } from 'lucide-react'
+import { IconButton } from '../lib/ui'
 import { listSections } from './sections'
 import { listSuggestions, resolveSuggestions, suggestionIds } from './track-changes'
 
-interface BarProps {
+interface ControlsProps {
   editor: Editor
   showOwn: boolean
   onToggleOwn: () => void
 }
 
-/** Counts and bulk actions for pending suggestions, plus the show/hide toggle for your own edits. */
-export function SuggestionBar({ editor, showOwn, onToggleOwn }: BarProps) {
+/** Top-bar review controls: AI suggestion count with accept/reject all, and your own changes. */
+export function ReviewControls({ editor, showOwn, onToggleOwn }: ControlsProps) {
   const counts = useEditorState({
     editor,
     selector: ({ editor }) => {
@@ -25,28 +27,25 @@ export function SuggestionBar({ editor, showOwn, onToggleOwn }: BarProps) {
     resolveSuggestions(editor, suggestionIds(editor.state.doc, (s) => s.author === author), accept)
 
   return (
-    <div className="suggestion-bar">
+    <div className="review">
       {counts.ai > 0 && (
-        <span className="group ai">
-          {counts.ai} AI suggestion{counts.ai === 1 ? '' : 's'}
-          <button type="button" onClick={() => resolveAll('ai', true)}>
-            Accept all
-          </button>
-          <button type="button" onClick={() => resolveAll('ai', false)}>
-            Reject all
-          </button>
-        </span>
+        <div className="pill ai" role="group" aria-label="AI suggestions">
+          <span className="count">
+            {counts.ai} suggestion{counts.ai === 1 ? '' : 's'}
+          </span>
+          <IconButton icon={CheckCheck} label="Accept all AI suggestions" tone="positive" size={15} onClick={() => resolveAll('ai', true)} />
+          <IconButton icon={X} label="Reject all AI suggestions" tone="negative" size={15} onClick={() => resolveAll('ai', false)} />
+        </div>
       )}
-      <span className="group own">
-        <label>
-          <input type="checkbox" checked={showOwn} onChange={onToggleOwn} /> Show my changes
-        </label>
-        {counts.own > 0 && (
-          <button type="button" onClick={() => resolveAll('u', true)} title="Keep your edits and stop tracking them">
-            Accept mine ({counts.own})
-          </button>
-        )}
-      </span>
+      <IconButton
+        icon={showOwn ? Eye : EyeOff}
+        label={showOwn ? 'Hide my changes' : 'Show my changes'}
+        pressed={showOwn}
+        onClick={onToggleOwn}
+      />
+      {counts.own > 0 && showOwn && (
+        <IconButton icon={Check} label={`Accept my changes (${counts.own})`} onClick={() => resolveAll('u', true)} />
+      )}
     </div>
   )
 }
@@ -63,10 +62,11 @@ export function ChangeBubble({ editor }: { editor: Editor }) {
       const hit = listSuggestions(editor.state.doc).find((s) => s.author === 'ai' && s.from <= from && from <= s.to)
       if (!hit) return null
       const section = listSections(editor.state.doc).find((s) => s.pos <= hit.from && hit.from < s.end)
-      let coords: { left: number; bottom: number } | null = null
+      // Above the line where the change starts, so it never covers the next line.
+      let coords: { left: number; top: number } | null = null
       try {
-        const c = editor.view.coordsAtPos(Math.min(hit.to, editor.state.doc.content.size))
-        coords = { left: c.left, bottom: c.bottom }
+        const c = editor.view.coordsAtPos(Math.min(hit.from + 1, editor.state.doc.content.size))
+        coords = { left: c.left, top: c.top }
       } catch {
         coords = null
       }
@@ -78,10 +78,7 @@ export function ChangeBubble({ editor }: { editor: Editor }) {
 
   const sectionIds = () =>
     active.section
-      ? suggestionIds(
-          editor.state.doc,
-          (s) => s.author === 'ai' && s.from < active.section!.to && s.to > active.section!.from,
-        )
+      ? suggestionIds(editor.state.doc, (s) => s.author === 'ai' && s.from < active.section!.to && s.to > active.section!.from)
       : [active.id]
   const resolve = (ids: string[], accept: boolean) => {
     resolveSuggestions(editor, ids, accept)
@@ -91,24 +88,17 @@ export function ChangeBubble({ editor }: { editor: Editor }) {
   return (
     <div
       className="change-bubble"
-      style={{ left: active.coords.left, top: active.coords.bottom + 6 }}
+      style={{ left: active.coords.left - 6, top: active.coords.top - 44 }}
       onMouseDown={(e) => e.preventDefault()}
     >
-      <button type="button" className="accept" onClick={() => resolve([active.id], true)}>
-        ✓ Accept
-      </button>
-      <button type="button" className="reject" onClick={() => resolve([active.id], false)}>
-        ✗ Reject
-      </button>
+      <IconButton icon={Check} label="Accept change" tone="positive" onClick={() => resolve([active.id], true)} />
+      <IconButton icon={X} label="Reject change" tone="negative" onClick={() => resolve([active.id], false)} />
       {active.section && (
         <>
-          <span className="sep">§{active.section.number}</span>
-          <button type="button" onClick={() => resolve(sectionIds(), true)}>
-            Accept section
-          </button>
-          <button type="button" onClick={() => resolve(sectionIds(), false)}>
-            Reject section
-          </button>
+          <span className="divider" aria-hidden />
+          <span className="section-label">§{active.section.number}</span>
+          <IconButton icon={ListChecks} label="Accept all changes in this section" tone="positive" onClick={() => resolve(sectionIds(), true)} />
+          <IconButton icon={ListX} label="Reject all changes in this section" tone="negative" onClick={() => resolve(sectionIds(), false)} />
         </>
       )}
     </div>

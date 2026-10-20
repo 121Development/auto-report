@@ -1,11 +1,30 @@
+import { autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react'
 import type { Editor } from '@tiptap/core'
 import { useServerFn } from '@tanstack/react-start'
-import { useEffect, useRef, useState } from 'react'
+import {
+  ArrowUp,
+  CircleCheck,
+  FoldVertical,
+  ListCollapse,
+  LoaderCircle,
+  Merge,
+  MessagesSquare,
+  Mic,
+  PenLine,
+  SpellCheck,
+  UnfoldVertical,
+  X,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { parseSectionRefs } from '../ai/section-refs'
 import type { ActionResponse, ActionType, ChatMessage, EntryPoint, SectionComment } from '../ai/types'
 import type { DocumentRecord } from '../lib/types'
+import { IconButton } from '../lib/ui'
 import { chatFn, runActionFn } from '../server/ai'
 import { applyAiEdits, sectionsWithPendingAi, snapshotSections } from './ai-client'
+import { anchorFor } from './anchor'
 import { listSections } from './sections'
 import { useDictation } from './use-dictation'
 
@@ -27,14 +46,45 @@ type State =
   | { step: 'done'; done: Done }
   | { step: 'error'; message: string }
 
-const PRESETS: { action: ActionType; label: string; instruction: string; when: (n: number, entry: EntryPoint) => boolean }[] = [
-  { action: 'expand', label: 'Expand', instruction: 'Expand this: add detail and explanation, about double the length.', when: (_, e) => e !== 'document' },
-  { action: 'shorten', label: 'Shorten', instruction: 'Shorten this: keep the key points and cut about a third.', when: () => true },
-  { action: 'rewrite', label: 'Rewrite', instruction: 'Rewrite this for clarity and flow, keeping the meaning.', when: (_, e) => e !== 'document' },
-  { action: 'merge', label: 'Merge', instruction: 'Merge these sections into one coherent section.', when: (n) => n > 1 },
-  { action: 'summarize', label: 'Summarize', instruction: 'Replace this with a concise summary of it.', when: (_, e) => e !== 'document' },
-  { action: 'check', label: 'Check consistency', instruction: 'Check consistency and terminology. Report each issue with a suggested fix.', when: () => true },
+const PRESETS: {
+  action: ActionType
+  icon: LucideIcon
+  label: string
+  instruction: string
+  when: (n: number, entry: EntryPoint) => boolean
+}[] = [
+  { action: 'expand', icon: UnfoldVertical, label: 'Expand', instruction: 'Expand this: add detail and explanation, about double the length.', when: (_, e) => e !== 'document' },
+  { action: 'shorten', icon: FoldVertical, label: 'Shorten', instruction: 'Shorten this: keep the key points and cut about a third.', when: () => true },
+  { action: 'rewrite', icon: PenLine, label: 'Rewrite for clarity', instruction: 'Rewrite this for clarity and flow, keeping the meaning.', when: (_, e) => e !== 'document' },
+  { action: 'merge', icon: Merge, label: 'Merge into one section', instruction: 'Merge these sections into one coherent section.', when: (n) => n > 1 },
+  { action: 'summarize', icon: ListCollapse, label: 'Summarize and replace', instruction: 'Replace this with a concise summary of it.', when: (_, e) => e !== 'document' },
+  { action: 'check', icon: SpellCheck, label: 'Check consistency and terminology', instruction: 'Check consistency and terminology. Report each issue with a suggested fix.', when: () => true },
 ]
+
+/** [3, 4, 5, 8] → "3–5, 8" */
+export function formatNumbers(numbers: number[]): string {
+  const sorted = [...new Set(numbers)].sort((a, b) => a - b)
+  const runs: string[] = []
+  for (let i = 0; i < sorted.length; i++) {
+    let j = i
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++
+    runs.push(j > i ? `${sorted[i]}–${sorted[j]}` : String(sorted[i]))
+    i = j
+  }
+  return runs.join(', ')
+}
+
+function useNarrow() {
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const update = () => setNarrow(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  return narrow
+}
 
 interface Props {
   editor: Editor
@@ -62,14 +112,30 @@ export function ActionBox({ editor, doc, draft, onClose }: Props) {
   const started = useRef(false)
   const dictation = useDictation(doc.language, (text) => setInput((v) => (v ? `${v} ${text}` : text)))
 
+  // Sit beside the target sections, to the right of the text column.
+  const anchor = useMemo(() => anchorFor(editor, draft), [editor, draft])
+  const narrow = useNarrow()
+  const floating = anchor.kind === 'floating' && !narrow
+  const { refs, floatingStyles } = useFloating({
+    placement: anchor.kind === 'floating' ? anchor.placement : 'right-start',
+    strategy: 'fixed',
+    middleware: [offset(28), flip({ fallbackPlacements: ['left-start', 'bottom-end'] }), shift({ padding: 12, crossAxis: true })],
+    whileElementsMounted: (reference, el, update) => autoUpdate(reference, el, update, { animationFrame: true }),
+  })
+  useEffect(() => {
+    if (anchor.kind === 'floating') {
+      refs.setPositionReference({ getBoundingClientRect: anchor.getRect, contextElement: editor.view.dom })
+    }
+  }, [anchor, refs, editor])
+
   const numberOf = (id: string) => listSections(editor.state.doc).find((s) => s.id === id)?.number
-  const label = (ids: string[]) => ids.map(numberOf).filter(Boolean).join(', ')
+  const label = (ids: string[]) => formatNumbers(ids.map(numberOf).filter((n): n is number => n !== undefined))
   const title =
     draft.entry === 'document'
-      ? 'Document'
+      ? 'Whole document'
       : draft.entry === 'inline'
         ? 'Inline prompt'
-        : `Section${draft.targets.length > 1 ? 's' : ''} ${label(draft.targets)}`
+        : `§ ${label(draft.targets)}`
 
   async function run(instruction: string, preset: ActionType | null, selection = draft.targets, entry = draft.entry) {
     const pending = sectionsWithPendingAi(editor, selection)
@@ -176,32 +242,32 @@ export function ActionBox({ editor, doc, draft, onClose }: Props) {
 
   const presets = PRESETS.filter((p) => p.when(draft.targets.length, draft.entry))
   const canEdit = state.step === 'input' || state.step === 'error'
+  const placement = floating ? 'floating' : narrow ? 'sheet' : 'docked'
 
   return (
-    <div className="action-box" role="dialog" aria-label="AI action" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+    <div
+      ref={refs.setFloating}
+      className={`action-box ${placement}`}
+      style={floating ? floatingStyles : undefined}
+      role="dialog"
+      aria-label="AI action"
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
       <header>
-        <span>{title}</span>
+        <span className="target">{title}</span>
         {canEdit && draft.entry !== 'inline' && (
-          <div className="modes" role="tablist">
-            <button type="button" aria-pressed={mode === 'oneshot'} onClick={() => setMode('oneshot')}>
-              One-shot
-            </button>
-            <button type="button" aria-pressed={mode === 'chat'} onClick={() => setMode('chat')}>
-              Chat
-            </button>
+          <div className="segmented" role="group" aria-label="Mode">
+            <IconButton icon={Zap} label="One-shot: one instruction, one suggestion" pressed={mode === 'oneshot'} size={14} onClick={() => setMode('oneshot')} />
+            <IconButton icon={MessagesSquare} label="Chat: refine the request before running it" pressed={mode === 'chat'} size={14} onClick={() => setMode('chat')} />
           </div>
         )}
-        <button type="button" className="icon" onClick={onClose} aria-label="Close">
-          ×
-        </button>
+        <IconButton icon={X} label="Close" shortcut="Esc" size={15} onClick={onClose} />
       </header>
 
       {canEdit && mode === 'oneshot' && presets.length > 0 && draft.entry !== 'inline' && (
-        <div className="presets">
+        <div className="presets" role="group" aria-label="Presets">
           {presets.map((p) => (
-            <button key={p.action} type="button" onClick={() => run(p.instruction, p.action)}>
-              {p.label}
-            </button>
+            <IconButton key={p.action} icon={p.icon} label={p.label} onClick={() => run(p.instruction, p.action)} />
           ))}
         </div>
       )}
@@ -213,57 +279,72 @@ export function ActionBox({ editor, doc, draft, onClose }: Props) {
               {m.content}
             </p>
           ))}
-          {chatBusy && <p className="assistant muted">…</p>}
+          {chatBusy && (
+            <p className="assistant pending">
+              <LoaderCircle size={14} className="spin" aria-label="Thinking" />
+            </p>
+          )}
         </div>
       )}
 
       {canEdit && draft.entry !== 'inline' && (
-        <div className="input-row">
+        <div className="composer">
           <textarea
             ref={inputRef}
             rows={2}
             value={input}
             placeholder={
               mode === 'chat'
-                ? 'Describe what you want; refine it before running'
+                ? 'Describe what you want…'
                 : draft.entry === 'document'
-                  ? 'e.g. review the full draft for a board audience'
-                  : 'What should change? e.g. make it more formal'
+                  ? 'Review the full draft for a board audience…'
+                  : 'What should change?'
             }
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => onKey(e, submit)}
           />
-          {dictation.supported && (
-            <button
-              type="button"
-              className={`mic${dictation.listening ? ' on' : ''}`}
-              aria-pressed={dictation.listening}
-              aria-label={dictation.listening ? 'Stop dictation' : 'Dictate'}
-              title="Dictate (your browser's speech recognition)"
-              onClick={dictation.toggle}
-            >
-              🎙
-            </button>
-          )}
+          <div className="composer-actions">
+            {dictation.supported && (
+              <IconButton
+                icon={Mic}
+                label={dictation.listening ? 'Stop dictation' : 'Dictate'}
+                pressed={dictation.listening}
+                className={dictation.listening ? 'listening' : undefined}
+                onClick={dictation.toggle}
+              />
+            )}
+            <IconButton
+              icon={ArrowUp}
+              label={mode === 'chat' ? 'Send' : 'Run'}
+              shortcut="↵"
+              tone="accent"
+              className="send"
+              disabled={!input.trim() || chatBusy}
+              onClick={submit}
+            />
+          </div>
         </div>
       )}
 
       {canEdit && mode === 'chat' && agreed && (
-        <footer>
-          <span className="muted meta" title={agreed}>
-            Will run: {agreed}
-          </span>
+        <div className="agreed">
+          <p title={agreed}>{agreed}</p>
           <button type="button" className="primary" onClick={() => run(agreed, null)}>
-            Run
+            Run this
           </button>
-        </footer>
+        </div>
       )}
 
       {state.step === 'error' && <p className="error">{state.message}</p>}
-      {state.step === 'running' && <p className="muted">Working on: {state.label}</p>}
+      {state.step === 'running' && (
+        <p className="running">
+          <LoaderCircle size={15} className="spin" aria-hidden />
+          <span>{state.label}</span>
+        </p>
+      )}
 
       {state.step === 'ask' && (
-        <>
+        <div className="ask">
           <p>{state.question}</p>
           <input
             autoFocus
@@ -272,27 +353,27 @@ export function ActionBox({ editor, doc, draft, onClose }: Props) {
             onChange={(e) => setAnswer(e.target.value)}
             onKeyDown={(e) => onKey(e, () => answerTarget(answer))}
           />
-        </>
+        </div>
       )}
 
       {state.step === 'done' && (
         <>
           <div className="result">
-            {state.done.suggested > 0 && (
-              <p>
-                {state.done.suggested} section{state.done.suggested === 1 ? '' : 's'} with suggested changes. Review them in
-                the text.
-              </p>
-            )}
-            {state.done.filled > 0 && (
-              <p>
-                Wrote {state.done.filled} empty section{state.done.filled === 1 ? '' : 's'}.
+            {(state.done.suggested > 0 || state.done.filled > 0) && (
+              <p className="summary">
+                <CircleCheck size={15} aria-hidden />
+                <span>
+                  {state.done.suggested > 0 &&
+                    `Suggested changes in ${state.done.suggested} section${state.done.suggested === 1 ? '' : 's'}. `}
+                  {state.done.filled > 0 && `Wrote ${state.done.filled} empty section${state.done.filled === 1 ? '' : 's'}.`}
+                </span>
               </p>
             )}
             {state.done.comments.map((c, i) => (
               <div key={i} className="comment">
-                <span className="muted">§{label([c.sectionId])}</span> {c.comment}
-                <div className="suggestion">{c.suggestion}</div>
+                <span className="ref">§{label([c.sectionId])}</span>
+                <p>{c.comment}</p>
+                <p className="fix">{c.suggestion}</p>
               </div>
             ))}
             {state.done.suggested + state.done.filled === 0 && state.done.comments.length === 0 && (
@@ -301,8 +382,8 @@ export function ActionBox({ editor, doc, draft, onClose }: Props) {
             {state.done.note && <p className="note">{state.done.note}</p>}
           </div>
           <footer>
-            <span className="muted meta">{state.done.meta}</span>
-            <button type="button" onClick={onClose}>
+            <span className="meta">{state.done.meta}</span>
+            <button type="button" className="primary" onClick={onClose}>
               Done
             </button>
           </footer>

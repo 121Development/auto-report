@@ -32,10 +32,19 @@ Source of truth: [docs/spec-v0.2.md](docs/spec-v0.2.md). Each milestone is shipp
 - [x] Own-edit tracking with show/hide toggle (document setting); "Accept mine"
 - [x] Undo/redo across own edits and accepted AI changes (suggestion and accept are separate undo steps)
 
+## M3.5 Design pass
+- [x] Typography and palette: Inter for the interface, Source Serif 4 for the text; calmer light/dark tokens
+- [x] Section numbers further left and more discreet; gutter controls as icons
+- [x] Lucide icons instead of text buttons (top bar, action box, presets, review), with tooltips (Radix)
+- [x] Action box anchored beside the selection: right of a single section, centred on adjacent sections, at the top one when scattered; bottom sheet on narrow screens
+- [x] Review controls folded into the top bar; change bubble restyled
+
 ## M4 Context + generation
 - [ ] Upload PDF, .docx, Markdown, pasted text; URLs via Browser Rendering → Markdown
 - [ ] Originals in R2, extracted text in D1; reusable library; per-document context panel (drag & drop files/folder)
 - [ ] All attached context sent in full to the generative model
+- [ ] Web research: an action can look things up on the internet (e.g. "expand this with current figures"); Claude's web search tool, with sources cited in the note and nothing invented
+- [ ] Decision model gets a "needs web research" question; the request can also ask for it explicitly
 - [ ] Generation from template (fill every section) or freeform prompt; snapshot first, stream section by section
 - [ ] Per-section regenerate; one-click rollback to the snapshot
 

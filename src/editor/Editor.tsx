@@ -1,16 +1,18 @@
 import type { JSONContent } from '@tiptap/core'
 import { useServerFn } from '@tanstack/react-start'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { ChevronLeft, Code, FileText, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { DocumentRecord, DocumentSettings } from '../lib/types'
+import { IconButton } from '../lib/ui'
 import { updateSettings } from '../server/documents'
 import { ActionBox, type ActionRequestDraft } from './ActionBox'
 import { baseExtensions } from './extensions'
-import { Gutter } from './gutter'
+import { Gutter, selectSections } from './gutter'
 import { InlinePrompt } from './inline-prompt'
 import { getLocal } from './local-store'
 import { resolveView } from './resolve-view'
-import { ChangeBubble, SuggestionBar } from './Review'
+import { ChangeBubble, ReviewControls } from './Review'
 import { reconcileSectionIds } from './sections'
 import { setContentDirect, suggestionIds } from './track-changes'
 import { useAutosave, type SaveStatus } from './use-autosave'
@@ -28,12 +30,20 @@ export function Editor({ doc }: { doc: DocumentRecord }) {
   const [raw, setRaw] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [selected, setSelected] = useState<string[]>([])
-  const [draft, setDraft] = useState<ActionRequestDraft | null>(null)
+  const [draft, setDraftState] = useState<ActionRequestDraft | null>(null)
   const { status, schedule } = useAutosave()
   const saveSettings = useServerFn(updateSettings)
   const titleRef = useRef(title)
   titleRef.current = title
   const live = { ...doc, settings }
+
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null)
+  /** Open (or close) the action box; its target sections show as selected while it is open. */
+  const setDraft = (next: ActionRequestDraft | null) => {
+    setDraftState(next)
+    const view = editorRef.current?.view
+    if (view && next && next.targets.length > 0) selectSections(view, { selected: next.targets, anchor: next.targets[0] })
+  }
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -53,6 +63,8 @@ export function Editor({ doc }: { doc: DocumentRecord }) {
     onUpdate: ({ editor }) =>
       schedule({ id: doc.id, title: titleRef.current, content: editor.getJSON(), updatedAt: Date.now() }),
   })
+
+  editorRef.current = editor
 
   // A local copy newer than the server's (tab closed or offline before it synced) wins.
   useEffect(() => {
@@ -116,46 +128,50 @@ export function Editor({ doc }: { doc: DocumentRecord }) {
   }
 
   return (
-    <div className="editor-shell">
+    <div className={`editor-shell${draft ? ' panel-open' : ''}`}>
       <header className="topbar">
-        <a href="/" className="back" aria-label="All documents">
-          ←
+        <a href="/" className="icon-btn back" aria-label="All documents">
+          <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />
         </a>
-        <input className="title" value={title} placeholder="Untitled" onChange={(e) => changeTitle(e.target.value)} />
-        <span className={`status status-${status}`}>{STATUS_LABEL[status]}</span>
-        <button
-          type="button"
-          className="toggle ask"
-          onClick={() => setDraft({ entry: 'document', targets: [] })}
-          title="Prompt the whole document (⌘J)"
-        >
-          ✦ Ask
-        </button>
-        <button
-          type="button"
-          className="toggle"
-          onClick={toggleRaw}
-          aria-pressed={raw !== null}
-          title="Raw Markdown. Your own tracked edits are kept as plain text."
-        >
-          {raw === null ? 'Markdown' : 'Preview'}
-        </button>
+        <input className="title" value={title} placeholder="Untitled" aria-label="Title" onChange={(e) => changeTitle(e.target.value)} />
+        <span className={`status status-${status}`} title={STATUS_LABEL[status]}>
+          <span className="dot" aria-hidden />
+          <span className="label">{STATUS_LABEL[status]}</span>
+        </span>
+        <div className="toolbar">
+          {editor && raw === null && (
+            <ReviewControls editor={editor} showOwn={settings.showOwnChanges} onToggleOwn={toggleOwnChanges} />
+          )}
+          <span className="divider" aria-hidden />
+          <IconButton
+            icon={raw === null ? Code : FileText}
+            label={raw === null ? 'Edit as Markdown' : 'Back to the editor'}
+            pressed={raw !== null}
+            onClick={toggleRaw}
+          />
+          <IconButton
+            icon={Sparkles}
+            label="Ask about the whole document"
+            shortcut="⌘J"
+            tone="accent"
+            text="Ask"
+            onClick={() => setDraft({ entry: 'document', targets: [] })}
+          />
+        </div>
       </header>
 
-      {editor && raw === null && (
-        <SuggestionBar editor={editor} showOwn={settings.showOwnChanges} onToggleOwn={toggleOwnChanges} />
-      )}
-      {notice && (
-        <div className="notice" role="status">
-          {notice}
-          <button type="button" className="icon" onClick={() => setNotice(null)} aria-label="Dismiss">
-            ×
-          </button>
-        </div>
-      )}
-      {selected.length > 0 && (
-        <div className="selection-bar">
-          {selected.length} section{selected.length === 1 ? '' : 's'} selected
+      {selected.length > 0 && !draft && (
+        <div className="selection-chip" role="status">
+          <span>
+            {selected.length} section{selected.length === 1 ? '' : 's'} selected
+          </span>
+          <IconButton
+            icon={Sparkles}
+            label="AI actions for the selection"
+            tone="accent"
+            size={14}
+            onClick={() => setDraft({ entry: selected.length > 1 ? 'multi' : 'section', targets: selected })}
+          />
         </div>
       )}
 
@@ -163,12 +179,20 @@ export function Editor({ doc }: { doc: DocumentRecord }) {
         {raw === null ? (
           <EditorContent editor={editor} />
         ) : (
-          <textarea className="raw" value={raw} onChange={(e) => setRaw(e.target.value)} spellCheck />
+          <textarea className="raw" value={raw} onChange={(e) => setRaw(e.target.value)} spellCheck aria-label="Markdown source" />
         )}
       </main>
 
-      {editor && raw === null && <ChangeBubble editor={editor} />}
-      {draft && editor && <ActionBox key={JSON.stringify(draft)} editor={editor} doc={live} draft={draft} onClose={() => setDraft(null)} />}
+      {notice && (
+        <div className="toast" role="status">
+          <span>{notice}</span>
+          <IconButton icon={X} label="Dismiss" size={14} onClick={() => setNotice(null)} />
+        </div>
+      )}
+      {editor && raw === null && !draft && <ChangeBubble editor={editor} />}
+      {draft && editor && (
+        <ActionBox key={JSON.stringify(draft)} editor={editor} doc={live} draft={draft} onClose={() => setDraft(null)} />
+      )}
     </div>
   )
 }

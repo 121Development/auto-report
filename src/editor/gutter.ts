@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { ChevronsDown, createElement, Sparkles, type IconNode } from 'lucide'
 import { headingGroup, isTrailingPlaceholder, listSections, rangeBetween } from './sections'
 import { authorOf } from './track-changes'
 
@@ -70,12 +71,19 @@ function clickNumber(view: EditorView, id: string, e: MouseEvent) {
   selectSections(view, { selected: [id], anchor: id })
 }
 
-function button(className: string, label: string, title: string, onClick: (e: MouseEvent) => void) {
+function button(
+  className: string,
+  content: string | IconNode,
+  title: string,
+  onClick: (e: MouseEvent) => void,
+) {
   const el = document.createElement('button')
   el.type = 'button'
   el.className = className
-  el.textContent = label
+  if (typeof content === 'string') el.textContent = content
+  else el.appendChild(createElement(content, { width: 14, height: 14, 'stroke-width': 1.75, 'aria-hidden': 'true' }))
   el.title = title
+  el.setAttribute('aria-label', title)
   el.contentEditable = 'false'
   el.addEventListener('mousedown', (e) => e.preventDefault())
   el.addEventListener('click', (e) => {
@@ -141,7 +149,7 @@ export const Gutter = Extension.create<GutterOptions>({
                     )
                     if (s.type === 'heading') {
                       gutter.appendChild(
-                        button('sec-group', '⤓', 'Select heading and its sections', () =>
+                        button('sec-group', ChevronsDown, 'Select heading and its sections', () =>
                           selectSections(view, {
                             selected: headingGroup(listSections(view.state.doc), s.id).map((x) => x.id),
                             anchor: s.id,
@@ -150,7 +158,7 @@ export const Gutter = Extension.create<GutterOptions>({
                       )
                     }
                     gutter.appendChild(
-                      button('sec-action', '✦', 'AI actions', () => {
+                      button('sec-action', Sparkles, 'AI actions', () => {
                         const current = gutterKey.getState(view.state) ?? EMPTY
                         options.onAction(current.selected.includes(s.id) ? current.selected : [s.id])
                       }),
