@@ -113,13 +113,23 @@ function renderDocument(sections: SectionSnapshot[], targets: Set<string>): stri
     .join('\n')
 }
 
-export function createClaudeGenerator(config: ClaudeConfig): Generator {
-  const client = new Anthropic({
+function makeClient(config: ClaudeConfig): Anthropic {
+  return new Anthropic({
     apiKey: config.apiKey,
     ...(config.gatewayURL ? { baseURL: config.gatewayURL } : {}),
     ...(config.gatewayToken ? { defaultHeaders: { 'cf-aig-authorization': `Bearer ${config.gatewayToken}` } } : {}),
     ...(config.fetch ? { fetch: config.fetch } : {}),
   })
+}
+
+function firstText(content: Anthropic.Beta.BetaContentBlock[]): string {
+  const block = content.find((b) => b.type === 'text')
+  if (!block || block.type !== 'text') throw new GenerationError('Claude returned no text.')
+  return block.text
+}
+
+export function createClaudeGenerator(config: ClaudeConfig): Generator {
+  const client = makeClient(config)
 
   return {
     async generate(input) {
@@ -161,15 +171,76 @@ export function createClaudeGenerator(config: ClaudeConfig): Generator {
       if (response.stop_reason === 'max_tokens') {
         throw new GenerationError('The response was cut off. Try a smaller selection.')
       }
-      const text = response.content.find((b) => b.type === 'text')
-      if (!text || text.type !== 'text') throw new GenerationError('Claude returned no text.')
-      let parsed: GenerationOutput
       try {
-        parsed = JSON.parse(text.text)
-      } catch {
+        return JSON.parse(firstText(response.content)) as GenerationOutput
+      } catch (error) {
+        if (error instanceof GenerationError) throw error
         throw new GenerationError('Claude returned malformed JSON.')
       }
-      return parsed
+    },
+  }
+}
+
+const CHAT_SYSTEM = `You help a writer shape an edit request before it runs on their document. The target sections are marked in the document.
+
+Each turn, return JSON with:
+- "reply": a short answer to the writer. Ask one clarifying question if something important is open; otherwise say in one or two sentences what the edit will do.
+- "instruction": the complete edit instruction agreed so far, self-contained, so it can run without this conversation.
+
+Write in the writer's language. Don't write the edited text itself; that happens when the writer runs the instruction.`
+
+const CHAT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reply', 'instruction'],
+  properties: { reply: { type: 'string' }, instruction: { type: 'string' } },
+}
+
+export interface ChatInput {
+  language: 'sv' | 'en'
+  sections: SectionSnapshot[]
+  targets: string[]
+  messages: { role: 'user' | 'assistant'; content: string }[]
+}
+
+export interface Chatter {
+  chat(input: ChatInput): Promise<{ reply: string; instruction: string }>
+}
+
+/** Chat mode runs on the fast model: it shapes the request, the edit itself runs later. */
+export function createClaudeChat(config: ClaudeConfig): Chatter {
+  const client = makeClient(config)
+  return {
+    async chat(input) {
+      const targets = new Set(input.targets)
+      const language = input.language === 'sv' ? 'Swedish' : 'English'
+      const response = await client.beta.messages.create({
+        model: MODELS.haiku,
+        max_tokens: 4000,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: CHAT_SCHEMA } },
+        system: [{ type: 'text', text: CHAT_SYSTEM, cache_control: { type: 'ephemeral' } }],
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `<document language="${language}">\n${renderDocument(input.sections, targets)}\n</document>`,
+                cache_control: { type: 'ephemeral' },
+              },
+              { type: 'text', text: input.messages[0]?.content ?? '' },
+            ],
+          },
+          ...input.messages.slice(1).map((m) => ({ role: m.role, content: m.content })),
+        ],
+      })
+      if (response.stop_reason === 'refusal') throw new GenerationError('Claude declined this request.')
+      try {
+        return JSON.parse(firstText(response.content)) as { reply: string; instruction: string }
+      } catch (error) {
+        if (error instanceof GenerationError) throw error
+        throw new GenerationError('Claude returned malformed JSON.')
+      }
     },
   }
 }

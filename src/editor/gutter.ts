@@ -1,7 +1,9 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { headingGroup, isTrailingPlaceholder, listSections, rangeBetween } from './sections'
+import { authorOf } from './track-changes'
 
 export interface GutterState {
   /** Selected section IDs, in document order. */
@@ -15,6 +17,19 @@ export interface GutterOptions {
   onAction: (sectionIds: string[]) => void
   onSelectionChange: (sectionIds: string[]) => void
 }
+
+function hasAiSuggestion(doc: PMNode, from: number, to: number): boolean {
+  let found = false
+  doc.nodesBetween(from, to, (node) => {
+    if (!found && node.marks.some((m) => CHANGE_MARKS.has(m.type.name) && authorOf(m.attrs.id) === 'ai')) {
+      found = true
+    }
+    return !found
+  })
+  return found
+}
+
+const CHANGE_MARKS = new Set(['insertion', 'deletion'])
 
 export const gutterKey = new PluginKey<GutterState>('gutter')
 
@@ -101,9 +116,13 @@ export const Gutter = Extension.create<GutterOptions>({
             const { selected } = gutterKey.getState(state) ?? EMPTY
             const decos: Decoration[] = []
             const sections = listSections(state.doc)
-            if (isTrailingPlaceholder(state.doc, sections.length - 1)) sections.pop()
+            const last = sections[sections.length - 1]
+            if (last && last.end === state.doc.content.size && isTrailingPlaceholder(state.doc, state.doc.childCount - 1)) {
+              sections.pop()
+            }
             for (const s of sections) {
               const isSelected = selected.includes(s.id)
+              const hasAi = hasAiSuggestion(state.doc, s.pos, s.end)
               decos.push(
                 Decoration.node(s.pos, s.end, {
                   class: isSelected ? 'section is-selected' : 'section',
@@ -112,7 +131,7 @@ export const Gutter = Extension.create<GutterOptions>({
                   s.pos,
                   (view) => {
                     const gutter = document.createElement('div')
-                    gutter.className = isSelected ? 'gutter is-selected' : 'gutter'
+                    gutter.className = `gutter${isSelected ? ' is-selected' : ''}${hasAi ? ' has-ai' : ''}`
                     gutter.contentEditable = 'false'
                     gutter.dataset.gutterFor = s.id
                     gutter.appendChild(
@@ -142,7 +161,7 @@ export const Gutter = Extension.create<GutterOptions>({
                     side: -1,
                     ignoreSelection: true,
                     stopEvent: () => true,
-                    key: `${s.id}:${s.number}:${s.type}:${isSelected ? 1 : 0}`,
+                    key: `${s.id}:${s.number}:${s.type}:${isSelected ? 1 : 0}:${hasAi ? 1 : 0}`,
                   },
                 ),
               )

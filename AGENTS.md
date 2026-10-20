@@ -21,6 +21,14 @@ Section Editor: a personal, Markdown-native writing app where every block is a n
 - Generative model: Claude through Cloudflare AI Gateway (`CF_ACCOUNT_ID` + `AI_GATEWAY_ID`). Auto = Haiku 5.5 (fast) / Sonnet 5.5 (strong); the document setting can pin Haiku, Sonnet or Opus 5.5.
 - Secrets: copy `.dev.vars.example` to `.dev.vars` locally; `wrangler secret put ANTHROPIC_API_KEY` (and `TYPESAFE_API_KEY`) in production.
 
+## Track changes (`src/editor/track-changes.ts`)
+- Built on `@handlewithcare/prosemirror-suggest-changes` (insertion/deletion/modification marks). Suggestion IDs carry the author: `ai:N` or `u:N`.
+- Transactions say how to handle them with the `TRACK` meta: `'ai'` → AI suggestions; `'direct'` → untracked (loading, filling an empty section, the `//` line); unset → your own edit.
+- Your own edits: typed text applies as-is and is marked on the next microtask (TipTap input rules compare the doc right after the keystroke, so the keystroke itself must not change); text deletions become deletion marks; structure and formatting (block types, lists, Enter, joins, bold) apply untracked.
+- Before an AI edit, your tracked edits inside the target sections are settled (`settleOwnChanges`), so the AI change tracks against the text as it reads.
+- Anything leaving the editor (AI snapshot, raw Markdown, export) goes through `resolveView` first: the serializer ignores suggestion marks and the library inserts zero-width spaces.
+- `patches/` holds a one-line fix for the library (`applySuggestion` crashed when the deleted block was the last in the document). Drop it when upstream fixes the `deletionTo <= size` bound in `commands.js`.
+
 ## First deploy
 1. `wrangler login`
 2. `wrangler d1 create section-editor` and put the id in `wrangler.jsonc`; `wrangler r2 bucket create section-editor-files`

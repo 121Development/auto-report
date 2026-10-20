@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { isLiveBlock } from './resolve-view'
 
 /**
  * Every top-level block of the document is one section: a paragraph, a heading,
@@ -31,12 +32,17 @@ export interface Section {
   end: number
 }
 
+/**
+ * Live sections in document order. Pending AI insertions and blocks you deleted
+ * (while tracking) get no number, so numbers don't shift while you review.
+ */
 export function listSections(doc: PMNode): Section[] {
   const sections: Section[] = []
-  doc.forEach((node, offset, index) => {
+  doc.forEach((node, offset) => {
+    if (!isLiveBlock(node)) return
     sections.push({
       id: node.attrs.sectionId ?? '',
-      number: index + 1,
+      number: sections.length + 1,
       type: node.type.name,
       level: node.type.name === 'heading' ? node.attrs.level : null,
       pos: offset,
@@ -52,12 +58,17 @@ export function listSections(doc: PMNode): Section[] {
  */
 export function isTrailingPlaceholder(doc: PMNode, index: number): boolean {
   const node = doc.child(index)
-  return (
-    index === doc.childCount - 1 &&
-    doc.childCount > 1 &&
-    node.type.name === 'paragraph' &&
-    node.content.size === 0
-  )
+  return index === doc.childCount - 1 && doc.childCount > 1 && isEmptyParagraph(node)
+}
+
+/** A paragraph with no visible content (tracking may leave a zero-width space in it). */
+export function isEmptyParagraph(node: PMNode): boolean {
+  if (node.type.name !== 'paragraph') return false
+  let empty = true
+  node.forEach((child) => {
+    if (!child.isText || (child.text ?? '').replace(/\u200B/g, '') !== '') empty = false
+  })
+  return empty
 }
 
 /**

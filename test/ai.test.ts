@@ -46,6 +46,7 @@ function request(over: Partial<ActionRequest>): ActionRequest {
     selection: [],
     previousSectionId: 'c',
     sections,
+    presetAction: null,
     ...over,
   }
 }
@@ -147,6 +148,19 @@ describe('runAction', () => {
       generator: generator(),
     })
     expect(res).toMatchObject({ kind: 'result', decision: { decidedBy: 'heuristic', action: 'shorten' } })
+  })
+})
+
+describe('presets', () => {
+  it('a preset fixes the action type while the decision model still sizes the model', async () => {
+    const gen = generator()
+    const res = await runAction(request({ entry: 'section', selection: ['b'], presetAction: 'expand' }), {
+      decider: decider({ action: 'rewrite', modelSize: 'strong' }),
+      generator: gen,
+    })
+    expect(res).toMatchObject({ kind: 'result', decision: { action: 'expand' } })
+    expect(gen.last?.action).toBe('expand')
+    expect(gen.last?.model).toBe(MODELS.sonnet)
   })
 })
 

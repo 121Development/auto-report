@@ -9,3 +9,5 @@ strictDepBuilds: true           # fail install on any unreviewed build script
 allowBuilds:                    # approve build scripts one package at a time
   esbuild: true
   workerd: true
+patchedDependencies:
+  '@handlewithcare/prosemirror-suggest-changes@0.1.8': patches/@handlewithcare__prosemirror-suggest-changes@0.1.8.patch

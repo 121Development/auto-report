@@ -2,82 +2,168 @@ import type { Editor } from '@tiptap/core'
 import { useServerFn } from '@tanstack/react-start'
 import { useEffect, useRef, useState } from 'react'
 import { parseSectionRefs } from '../ai/section-refs'
-import type { ActionResponse, EntryPoint } from '../ai/types'
+import type { ActionResponse, ActionType, ChatMessage, EntryPoint, SectionComment } from '../ai/types'
 import type { DocumentRecord } from '../lib/types'
-import { runActionFn } from '../server/ai'
-import { applyEdits, previousSectionId, snapshotSections } from './ai-client'
+import { chatFn, runActionFn } from '../server/ai'
+import { applyAiEdits, sectionsWithPendingAi, snapshotSections } from './ai-client'
 import { listSections } from './sections'
+import { useDictation } from './use-dictation'
 
-type Result = Extract<ActionResponse, { kind: 'result' }>
+export interface ActionRequestDraft {
+  entry: EntryPoint
+  /** Selected sections; empty for inline and document prompts. */
+  targets: string[]
+  /** Inline prompts arrive with their instruction and run at once. */
+  instruction?: string
+  previousSectionId?: string | null
+}
+
+type Done = { suggested: number; filled: number; note: string; comments: SectionComment[]; meta: string }
 
 type State =
   | { step: 'input' }
-  | { step: 'running' }
-  | { step: 'ask'; question: string; instruction: string }
-  | { step: 'result'; result: Result }
+  | { step: 'running'; label: string }
+  | { step: 'ask'; question: string; instruction: string; preset: ActionType | null }
+  | { step: 'done'; done: Done }
   | { step: 'error'; message: string }
+
+const PRESETS: { action: ActionType; label: string; instruction: string; when: (n: number, entry: EntryPoint) => boolean }[] = [
+  { action: 'expand', label: 'Expand', instruction: 'Expand this: add detail and explanation, about double the length.', when: (_, e) => e !== 'document' },
+  { action: 'shorten', label: 'Shorten', instruction: 'Shorten this: keep the key points and cut about a third.', when: () => true },
+  { action: 'rewrite', label: 'Rewrite', instruction: 'Rewrite this for clarity and flow, keeping the meaning.', when: (_, e) => e !== 'document' },
+  { action: 'merge', label: 'Merge', instruction: 'Merge these sections into one coherent section.', when: (n) => n > 1 },
+  { action: 'summarize', label: 'Summarize', instruction: 'Replace this with a concise summary of it.', when: (_, e) => e !== 'document' },
+  { action: 'check', label: 'Check consistency', instruction: 'Check consistency and terminology. Report each issue with a suggested fix.', when: () => true },
+]
 
 interface Props {
   editor: Editor
   doc: DocumentRecord
-  /** Target sections from the gutter selection. Empty for an inline or document request. */
-  targets: string[]
+  draft: ActionRequestDraft
   onClose: () => void
 }
 
 /**
- * Section and multi-section entry point: one instruction, one result. Sends the
- * same ActionRequest as every other entry point.
+ * The chat or voice box for section, multi-section and document actions, and the
+ * status box for inline `//` prompts. One-shot: one instruction, one suggestion.
+ * Chat: refine the request back and forth, then run it.
  */
-export function ActionBox({ editor, doc, targets, onClose }: Props) {
-  const run = useServerFn(runActionFn)
-  const [instruction, setInstruction] = useState('')
+export function ActionBox({ editor, doc, draft, onClose }: Props) {
+  const runAction = useServerFn(runActionFn)
+  const chat = useServerFn(chatFn)
+  const [mode, setMode] = useState<'oneshot' | 'chat'>('oneshot')
+  const [input, setInput] = useState('')
   const [answer, setAnswer] = useState('')
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [agreed, setAgreed] = useState('')
+  const [chatBusy, setChatBusy] = useState(false)
   const [state, setState] = useState<State>({ step: 'input' })
   const inputRef = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => inputRef.current?.focus(), [])
+  const started = useRef(false)
+  const dictation = useDictation(doc.language, (text) => setInput((v) => (v ? `${v} ${text}` : text)))
 
   const numberOf = (id: string) => listSections(editor.state.doc).find((s) => s.id === id)?.number
   const label = (ids: string[]) => ids.map(numberOf).filter(Boolean).join(', ')
+  const title =
+    draft.entry === 'document'
+      ? 'Document'
+      : draft.entry === 'inline'
+        ? 'Inline prompt'
+        : `Section${draft.targets.length > 1 ? 's' : ''} ${label(draft.targets)}`
 
-  async function submit(text: string, selection: string[]) {
-    const entry: EntryPoint = selection.length > 1 ? 'multi' : 'section'
-    setState({ step: 'running' })
+  async function run(instruction: string, preset: ActionType | null, selection = draft.targets, entry = draft.entry) {
+    const pending = sectionsWithPendingAi(editor, selection)
+    if (pending.length > 0) {
+      setState({
+        step: 'error',
+        message: `Section ${label(pending)} has pending AI suggestions. Accept or reject them first.`,
+      })
+      return
+    }
+    setState({ step: 'running', label: instruction })
     try {
-      const response = await run({
+      const response: ActionResponse = await runAction({
         data: {
           documentId: doc.id,
           entry,
-          instruction: text,
+          instruction,
           language: doc.language,
           model: doc.settings.model,
           selection,
-          previousSectionId: previousSectionId(editor),
+          previousSectionId: draft.previousSectionId ?? null,
           sections: snapshotSections(editor),
+          presetAction: preset,
         },
       })
-      if (response.kind === 'needs-target') setState({ step: 'ask', question: response.question, instruction: text })
-      else if (response.kind === 'error') setState({ step: 'error', message: response.message })
-      else setState({ step: 'result', result: response })
+      if (response.kind === 'needs-target') {
+        setState({ step: 'ask', question: response.question, instruction, preset })
+      } else if (response.kind === 'error') {
+        setState({ step: 'error', message: response.message })
+      } else {
+        const counts = applyAiEdits(editor, response.edits)
+        setState({
+          step: 'done',
+          done: {
+            ...counts,
+            note: response.note,
+            comments: response.comments,
+            meta: `${response.decision.action} · ${response.model} · ${response.decision.decidedBy}`,
+          },
+        })
+      }
     } catch {
       setState({ step: 'error', message: 'Could not reach the server.' })
     }
   }
 
-  function submitAnswer(text: string) {
+  // Inline prompts run as soon as they fire.
+  useEffect(() => {
+    if (draft.instruction && !started.current) {
+      started.current = true
+      void run(draft.instruction, null)
+    } else {
+      inputRef.current?.focus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function answerTarget(text: string) {
+    if (state.step !== 'ask') return
     // "3", "2-4", "2, 5": resolved to IDs now, against the current numbering.
-    const numbers = parseSectionRefs(`sections ${text}`)
     const sections = listSections(editor.state.doc)
-    const ids = numbers.map((n) => sections[n - 1]?.id).filter((id): id is string => !!id)
+    const ids = parseSectionRefs(`sections ${text}`)
+      .map((n) => sections[n - 1]?.id)
+      .filter((id): id is string => !!id)
     if (ids.length === 0) return
-    void submit(state.step === 'ask' ? state.instruction : instruction, ids)
+    void run(state.instruction, state.preset, ids, ids.length > 1 ? 'multi' : 'section')
   }
 
-  function apply(result: Result) {
-    applyEdits(editor, result.edits)
-    onClose()
-    editor.commands.focus()
+  async function sendChat(text: string) {
+    const next: ChatMessage[] = [...messages, { role: 'user', content: text }]
+    setMessages(next)
+    setInput('')
+    setChatBusy(true)
+    try {
+      const res = await chat({
+        data: { language: doc.language, targets: draft.targets, sections: snapshotSections(editor), messages: next },
+      })
+      if (res.kind === 'error') setState({ step: 'error', message: res.message })
+      else {
+        setMessages([...next, { role: 'assistant', content: res.reply }])
+        setAgreed(res.instruction)
+      }
+    } catch {
+      setState({ step: 'error', message: 'Could not reach the server.' })
+    } finally {
+      setChatBusy(false)
+    }
+  }
+
+  const submit = () => {
+    const text = input.trim()
+    if (!text) return
+    if (mode === 'chat') void sendChat(text)
+    else void run(text, null)
   }
 
   const onKey = (e: React.KeyboardEvent, send: () => void) => {
@@ -88,30 +174,93 @@ export function ActionBox({ editor, doc, targets, onClose }: Props) {
     }
   }
 
+  const presets = PRESETS.filter((p) => p.when(draft.targets.length, draft.entry))
+  const canEdit = state.step === 'input' || state.step === 'error'
+
   return (
-    <div className="action-box" role="dialog" aria-label="AI action">
+    <div className="action-box" role="dialog" aria-label="AI action" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <header>
-        <span>{targets.length > 0 ? `Section${targets.length > 1 ? 's' : ''} ${label(targets)}` : 'Document'}</span>
+        <span>{title}</span>
+        {canEdit && draft.entry !== 'inline' && (
+          <div className="modes" role="tablist">
+            <button type="button" aria-pressed={mode === 'oneshot'} onClick={() => setMode('oneshot')}>
+              One-shot
+            </button>
+            <button type="button" aria-pressed={mode === 'chat'} onClick={() => setMode('chat')}>
+              Chat
+            </button>
+          </div>
+        )}
         <button type="button" className="icon" onClick={onClose} aria-label="Close">
           ×
         </button>
       </header>
 
-      {(state.step === 'input' || state.step === 'error') && (
-        <>
+      {canEdit && mode === 'oneshot' && presets.length > 0 && draft.entry !== 'inline' && (
+        <div className="presets">
+          {presets.map((p) => (
+            <button key={p.action} type="button" onClick={() => run(p.instruction, p.action)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {canEdit && mode === 'chat' && messages.length > 0 && (
+        <div className="chat">
+          {messages.map((m, i) => (
+            <p key={i} className={m.role}>
+              {m.content}
+            </p>
+          ))}
+          {chatBusy && <p className="assistant muted">…</p>}
+        </div>
+      )}
+
+      {canEdit && draft.entry !== 'inline' && (
+        <div className="input-row">
           <textarea
             ref={inputRef}
             rows={2}
-            value={instruction}
-            placeholder="What should change? e.g. make it shorter, more formal"
-            onChange={(e) => setInstruction(e.target.value)}
-            onKeyDown={(e) => onKey(e, () => instruction.trim() && submit(instruction, targets))}
+            value={input}
+            placeholder={
+              mode === 'chat'
+                ? 'Describe what you want; refine it before running'
+                : draft.entry === 'document'
+                  ? 'e.g. review the full draft for a board audience'
+                  : 'What should change? e.g. make it more formal'
+            }
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => onKey(e, submit)}
           />
-          {state.step === 'error' && <p className="error">{state.message}</p>}
-        </>
+          {dictation.supported && (
+            <button
+              type="button"
+              className={`mic${dictation.listening ? ' on' : ''}`}
+              aria-pressed={dictation.listening}
+              aria-label={dictation.listening ? 'Stop dictation' : 'Dictate'}
+              title="Dictate (your browser's speech recognition)"
+              onClick={dictation.toggle}
+            >
+              🎙
+            </button>
+          )}
+        </div>
       )}
 
-      {state.step === 'running' && <p className="muted">Working…</p>}
+      {canEdit && mode === 'chat' && agreed && (
+        <footer>
+          <span className="muted meta" title={agreed}>
+            Will run: {agreed}
+          </span>
+          <button type="button" className="primary" onClick={() => run(agreed, null)}>
+            Run
+          </button>
+        </footer>
+      )}
+
+      {state.step === 'error' && <p className="error">{state.message}</p>}
+      {state.step === 'running' && <p className="muted">Working on: {state.label}</p>}
 
       {state.step === 'ask' && (
         <>
@@ -121,43 +270,41 @@ export function ActionBox({ editor, doc, targets, onClose }: Props) {
             value={answer}
             placeholder="e.g. 3 or 2-4"
             onChange={(e) => setAnswer(e.target.value)}
-            onKeyDown={(e) => onKey(e, () => submitAnswer(answer))}
+            onKeyDown={(e) => onKey(e, () => answerTarget(answer))}
           />
         </>
       )}
 
-      {state.step === 'result' && (
+      {state.step === 'done' && (
         <>
           <div className="result">
-            {state.result.edits.map((edit) => (
-              <div key={edit.replaces.join()} className="edit">
-                <span className="muted">§{label(edit.replaces)}</span>
-                <pre>{edit.markdown}</pre>
-              </div>
-            ))}
-            {state.result.comments.map((c, i) => (
+            {state.done.suggested > 0 && (
+              <p>
+                {state.done.suggested} section{state.done.suggested === 1 ? '' : 's'} with suggested changes. Review them in
+                the text.
+              </p>
+            )}
+            {state.done.filled > 0 && (
+              <p>
+                Wrote {state.done.filled} empty section{state.done.filled === 1 ? '' : 's'}.
+              </p>
+            )}
+            {state.done.comments.map((c, i) => (
               <div key={i} className="comment">
                 <span className="muted">§{label([c.sectionId])}</span> {c.comment}
                 <div className="suggestion">{c.suggestion}</div>
               </div>
             ))}
-            {state.result.edits.length === 0 && state.result.comments.length === 0 && (
+            {state.done.suggested + state.done.filled === 0 && state.done.comments.length === 0 && (
               <p className="muted">No changes suggested.</p>
             )}
-            {state.result.note && <p className="note">{state.result.note}</p>}
+            {state.done.note && <p className="note">{state.done.note}</p>}
           </div>
           <footer>
-            <span className="muted meta">
-              {state.result.decision.action} · {state.result.model} · {state.result.decision.decidedBy}
-            </span>
-            <button type="button" onClick={() => setState({ step: 'input' })}>
-              Back
+            <span className="muted meta">{state.done.meta}</span>
+            <button type="button" onClick={onClose}>
+              Done
             </button>
-            {state.result.edits.length > 0 && (
-              <button type="button" className="primary" onClick={() => apply(state.result)}>
-                Apply
-              </button>
-            )}
           </footer>
         </>
       )}

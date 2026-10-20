@@ -23,13 +23,14 @@ Source of truth: [docs/spec-v0.2.md](docs/spec-v0.2.md). Each milestone is shipp
 - [x] Interim entry point to exercise the engine: gutter ✦ opens an instruction box; result previews, Apply replaces in one undo step (M3 turns this into tracked suggestions)
 
 ## M3 Entry points + track changes
-- [ ] `//` inline prompt (line start only, fired by Enter, line removed after, never exported)
-- [ ] Section chat/voice box from gutter icon; one-shot and chat modes
-- [ ] Multi-select: click, shift-click range, cmd-click non-adjacent
-- [ ] Document prompt (top bar + shortcut)
-- [ ] Presets: expand, shorten, rewrite, merge, summarize & replace, check consistency
-- [ ] Suggestion marks: accept/reject per change or per section; own-edit tracking with show/hide toggle
-- [ ] Undo/redo across own edits and accepted AI changes
+- [x] `//` inline prompt (line start only, fired by Enter, line removed, unnumbered, never sent as text)
+- [x] Section chat/voice box from gutter icon; one-shot and chat modes (chat refines the request, then Run); voice via browser speech recognition
+- [x] Multi-select: click, shift-click range, cmd-click non-adjacent
+- [x] Document prompt (top bar ✦ Ask + ⌘J)
+- [x] Presets: expand, shorten, rewrite, merge, summarize & replace, check consistency
+- [x] AI edits as tracked suggestions (word-level for a paragraph rewrite, block-level otherwise); empty sections filled directly; accept/reject per change, per section or all; section IDs survive accept
+- [x] Own-edit tracking with show/hide toggle (document setting); "Accept mine"
+- [x] Undo/redo across own edits and accepted AI changes (suggestion and accept are separate undo steps)
 
 ## M4 Context + generation
 - [ ] Upload PDF, .docx, Markdown, pasted text; URLs via Browser Rendering → Markdown

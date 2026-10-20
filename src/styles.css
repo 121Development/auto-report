@@ -6,6 +6,10 @@
   --line: #e8e5df;
   --accent: #3b5bdb;
   --accent-soft: #eef1fd;
+  --ins: #e3f4e8;
+  --ins-line: #2f9e44;
+  --del: #c92a2a;
+  --own: #f1f3f5;
   --gutter: 4.5rem;
   color-scheme: light dark;
 }
@@ -19,6 +23,10 @@
     --line: #2f2e2b;
     --accent: #8ea4ff;
     --accent-soft: #252b44;
+    --ins: #1e3a29;
+    --ins-line: #69db7c;
+    --del: #ff8787;
+    --own: #2a2a28;
   }
 }
 
@@ -170,20 +178,20 @@ button {
   position: relative;
 }
 
-.doc > .section {
+.doc .section {
   margin: 0;
   padding: 0.35em 0.5rem;
   border-radius: 4px;
   transition: background 0.1s;
 }
 
-.doc > .section.is-selected {
+.doc .section.is-selected {
   background: var(--accent-soft);
 }
 
-.doc > h1.section { font-size: 1.9rem; line-height: 1.25; padding-top: 0.8em; }
-.doc > h2.section { font-size: 1.45rem; line-height: 1.3; padding-top: 0.7em; }
-.doc > h3.section { font-size: 1.2rem; padding-top: 0.5em; }
+.doc h1.section { font-size: 1.9rem; line-height: 1.25; padding-top: 0.8em; }
+.doc h2.section { font-size: 1.45rem; line-height: 1.3; padding-top: 0.7em; }
+.doc h3.section { font-size: 1.2rem; padding-top: 0.5em; }
 
 .doc ul,
 .doc ol {
@@ -365,6 +373,236 @@ button {
 
 .action-box .error {
   color: #c2410c;
+}
+
+/* Track changes. AI suggestions: green insertions, red strike-through deletions.
+   Your own edits are quieter, and hidden entirely with .hide-own. */
+.doc ins,
+.doc del {
+  text-decoration: none;
+}
+
+.doc ins[data-author='ai'] {
+  background: var(--ins);
+  box-shadow: inset 0 -2px 0 var(--ins-line);
+}
+
+.doc del[data-author='ai'] {
+  color: var(--del);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.doc ins[data-author='u'] {
+  background: var(--own);
+}
+
+.doc del[data-author='u'] {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.doc.hide-own ins[data-author='u'] {
+  background: none;
+}
+
+.doc.hide-own del[data-author='u'],
+.doc.hide-own ins[data-author='u'] > span {
+  /* the second hides the library's ¶ markers for your own block changes */
+  display: none !important;
+}
+
+/* Block-level suggestions wrap the whole block. */
+.doc > ins,
+.doc > del {
+  display: block;
+}
+
+.doc > ins[data-author='ai'] {
+  box-shadow: inset 3px 0 0 var(--ins-line);
+}
+
+.doc > del[data-author='ai'] {
+  box-shadow: inset 3px 0 0 var(--del);
+}
+
+.gutter.has-ai .sec-num {
+  color: var(--ins-line);
+  font-weight: 700;
+}
+
+.doc .prompt-line {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.suggestion-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 0.3rem 1rem;
+  font: 0.8rem ui-sans-serif, system-ui, sans-serif;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.suggestion-bar .group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.suggestion-bar .ai {
+  color: var(--ins-line);
+  font-weight: 600;
+}
+
+.suggestion-bar button,
+.change-bubble button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 5px;
+  padding: 0.05rem 0.5rem;
+  font-weight: 400;
+}
+
+.suggestion-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.notice {
+  margin: 0.5rem auto 0;
+  max-width: 42rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  font: 0.85rem ui-sans-serif, system-ui, sans-serif;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notice .icon,
+.action-box .icon {
+  border: 0;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.change-bubble {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  font: 0.8rem ui-sans-serif, system-ui, sans-serif;
+}
+
+.change-bubble .accept {
+  color: var(--ins-line);
+}
+
+.change-bubble .reject {
+  color: var(--del);
+}
+
+.change-bubble .sep {
+  color: var(--muted);
+  padding: 0 0.2rem;
+}
+
+.action-box .modes {
+  display: inline-flex;
+  gap: 0;
+}
+
+.action-box .modes button {
+  border-radius: 0;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.action-box .modes button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.action-box .modes button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: 0;
+}
+
+.action-box .modes button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.action-box .presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.action-box .presets button {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+}
+
+.action-box .input-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.action-box .mic {
+  padding: 0.4rem 0.5rem;
+}
+
+.action-box .mic.on {
+  background: var(--del);
+  border-color: var(--del);
+}
+
+.action-box .chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 30vh;
+  overflow: auto;
+}
+
+.action-box .chat p {
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  max-width: 90%;
+}
+
+.action-box .chat .user {
+  align-self: flex-end;
+  background: var(--accent-soft);
+}
+
+.action-box .chat .assistant {
+  align-self: flex-start;
+  background: var(--bg);
+}
+
+.action-box footer .meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {

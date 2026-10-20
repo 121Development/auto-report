@@ -29,6 +29,14 @@ export const SectionId = Extension.create({
             renderHTML: (attrs) =>
               attrs.sectionId ? { 'data-section-id': attrs.sectionId } : {},
           },
+          // Set on a block that an AI suggestion proposes in place of a section. When
+          // the suggestion is accepted and the old block goes, this block takes its ID.
+          replacesSectionId: {
+            default: null,
+            keepOnSplit: false,
+            parseHTML: () => null,
+            renderHTML: () => ({}),
+          },
         },
       },
     ]

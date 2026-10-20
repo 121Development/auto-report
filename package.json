@@ -16,11 +16,13 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@handlewithcare/prosemirror-suggest-changes": "^0.1.8",
     "@tanstack/ai": "^0.68.0",
     "@tanstack/ai-typesafe": "^0.1.11",
     "@tanstack/react-router": "^1.170.44",
     "@tanstack/react-start": "^1.169.1",
     "@tiptap/core": "^3.32.0",
+    "@tiptap/extension-document": "3.32.0",
     "@tiptap/markdown": "^3.32.0",
     "@tiptap/pm": "^3.32.0",
     "@tiptap/react": "^3.32.0",

@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   EMPTY_DOC,
   type DocumentRecord,
+  type DocumentSettings,
   type DocumentSummary,
   type Language,
 } from '../lib/types'
@@ -100,4 +101,26 @@ export const saveDocument = createServerFn({ method: 'POST' })
       .first<{ updated_at: number }>()
     if (!row) throw new Error('Document not found')
     return { updatedAt: row.updated_at, applied: false }
+  })
+
+export const updateSettings = createServerFn({ method: 'POST' })
+  .validator((input: { id: string; settings: Partial<DocumentSettings> }) => {
+    if (!input?.id || typeof input.settings !== 'object') throw new Error('Invalid settings payload')
+    const s = input.settings
+    const clean: Partial<DocumentSettings> = {}
+    if (s.model && ['auto', 'haiku', 'sonnet', 'opus'].includes(s.model)) clean.model = s.model
+    if (typeof s.imageCaptions === 'boolean') clean.imageCaptions = s.imageCaptions
+    if (typeof s.showOwnChanges === 'boolean') clean.showOwnChanges = s.showOwnChanges
+    return { id: String(input.id), settings: clean }
+  })
+  .handler(async ({ data }): Promise<DocumentSettings> => {
+    const row = await env.DB.prepare('SELECT settings FROM documents WHERE id = ?')
+      .bind(data.id)
+      .first<{ settings: string }>()
+    if (!row) throw new Error('Document not found')
+    const settings = { ...DEFAULT_SETTINGS, ...JSON.parse(row.settings), ...data.settings }
+    await env.DB.prepare('UPDATE documents SET settings = ? WHERE id = ?')
+      .bind(JSON.stringify(settings), data.id)
+      .run()
+    return settings
   })

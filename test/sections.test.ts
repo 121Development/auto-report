@@ -1,6 +1,7 @@
 import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { baseExtensions } from '../src/editor/extensions'
+import { setContentDirect } from '../src/editor/track-changes'
 import {
   headingGroup,
   idForNumber,
@@ -100,7 +101,7 @@ describe('raw Markdown round trip', () => {
     const before = e.getJSON()
     const [title, keep, change] = ids(e)
     const parsed = e.markdown!.parse('# Title\n\nKeep me.\n\nChanged!')
-    e.commands.setContent(reconcileSectionIds(before, parsed))
+    setContentDirect(e, reconcileSectionIds(before, parsed))
     const after = ids(e)
     expect(after[0]).toBe(title)
     expect(after[1]).toBe(keep)

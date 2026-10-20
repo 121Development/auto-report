@@ -97,6 +97,8 @@ export async function runAction(request: ActionRequest, deps: EngineDeps): Promi
     decision = await deps.fallbackDecider.decide(input)
   }
 
+  if (request.presetAction) decision = { ...decision, action: request.presetAction, actionConfidence: 1 }
+
   const targets = resolveTargets(request, named, decision)
   if (!targets.ok) {
     if (targets.reason === 'ask') return { kind: 'needs-target', question: 'Which section?', decision }
