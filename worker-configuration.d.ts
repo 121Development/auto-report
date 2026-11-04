@@ -5,7 +5,7 @@ interface __BaseEnv_Env {
 	FILES: R2Bucket;
 	DB: D1Database;
 	CF_ACCOUNT_ID: "9ce2fa7a5be6718c1ef41f765d26261f";
-	AI_GATEWAY_ID: "section-editor";
+	AI_GATEWAY_ID: "auto-report";
 	DECISION_MODEL: "jev-latest";
 	DECISION_BASE_URL: "";
 	ANTHROPIC_API_KEY: string;

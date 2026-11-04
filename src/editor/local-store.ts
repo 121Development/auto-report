@@ -13,7 +13,7 @@ export interface LocalCopy {
   dirty: boolean
 }
 
-const DB_NAME = 'section-editor'
+const DB_NAME = 'auto-report'
 const STORE = 'documents'
 
 let dbPromise: Promise<IDBDatabase> | null = null

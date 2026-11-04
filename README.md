@@ -1,85 +1,93 @@
 # Auto Report
 
-A Markdown-native writing app where every block of text is a numbered section
-that AI can rewrite, expand, merge or check, with AI changes arriving as
-tracked suggestions you accept or reject.
+Write reports with AI one section at a time. Every paragraph, heading and list
+is a numbered section you can point the AI at ("shorten section 4", "merge 2
+to 5"), and every change it makes arrives as a tracked suggestion you accept
+or reject.
 
-**Status:** WIP. Milestones 1–3.5 of [PLAN.md](PLAN.md) are done (editor, AI
-engine, entry points, track changes, design pass). Context upload, templates,
-versions and export are next.
+**Status:** Work in progress. The editor, AI actions and track changes work
+today; context upload, templates, versions and Word/PDF export are next (see
+[PLAN.md](PLAN.md)).
 
-![Auto Report: a document with numbered sections and an AI action icon in the gutter](docs/images/screenshot.png)
+![Auto Report: a report with numbered sections and an AI action icon in the gutter](docs/images/screenshot.png)
 
-## What it does
+## Why
 
-- **Numbered sections.** Every paragraph, heading, list or table is one section
-  with a number in the gutter. Numbers update as you write; behind each one is
-  a stable ID, so AI edits never land on the wrong block.
-- **Four ways to ask the AI:**
-  - Type `// make the previous section shorter` on a new line and press Enter.
-  - Click the ✦ beside a section to type or dictate an instruction.
-  - Select several sections (shift-click, ⌘-click) to merge, summarize or check them.
-  - Press ⌘J to ask about the whole document.
-- **Track changes.** AI edits to existing text show up as word-level
-  suggestions you accept or reject per change, per section or all at once.
-  Your own edits can be tracked too.
-- **Markdown in and out.** Toggle to raw Markdown at any time. Documents
-  autosave to D1, with an IndexedDB copy for offline.
+AI chat is good at producing a draft and bad at editing one. You paste text in,
+get a new version back, and lose track of what changed. Auto Report keeps the
+document in charge: you say which part to change, the AI changes only that, and
+you review the diff like a colleague's edits.
+
+## How you use it
+
+| You want to… | Do this |
+| --- | --- |
+| Change the section you just wrote | Type `// make this more concrete` on a new line and press Enter |
+| Work on a specific section | Click ✦ next to its number, then type or dictate |
+| Merge, summarize or check several | Shift-click or ⌘-click their numbers, then ✦ |
+| Ask about the whole report | Press ⌘J |
+| Review what the AI changed | Accept or reject per change, per section or all at once |
+
+Empty sections are filled in directly. You can switch to raw Markdown at any
+time, and documents autosave (with an offline copy in the browser).
+
+## How it works
+
+Each request goes through two models:
+
+1. **Jev** (a small decision model via `@tanstack/ai-typesafe`) works out what
+   kind of edit you want, which sections it touches, and how strong a model it
+   needs. If it isn't sure which section you mean, the app asks.
+2. **Claude** (via Cloudflare AI Gateway) writes the change: Haiku for quick
+   edits, Sonnet for bigger ones, or Opus if the document pins it.
+
+Section numbers are only for display. Each section has a hidden stable ID, and
+"section 4" is resolved to that ID the moment you press Enter, so edits land in
+the right place even as numbers shift.
 
 The full design is in [docs/spec-v0.2.md](docs/spec-v0.2.md).
 
 ## Tech stack
 
 - [TanStack Start](https://tanstack.com/start) (React, TypeScript) on Cloudflare Workers
-- [TipTap](https://tiptap.dev) / ProseMirror for the editor, with
+- [TipTap](https://tiptap.dev) / ProseMirror, with
   [`@handlewithcare/prosemirror-suggest-changes`](https://www.npmjs.com/package/@handlewithcare/prosemirror-suggest-changes)
   for track changes
-- Cloudflare D1 (documents, versions) and R2 (files)
-- Two models per request:
-  - Jev (via `@tanstack/ai-typesafe`) decides what kind of action this is and
-    which sections it targets.
-  - Claude (via Cloudflare AI Gateway) writes the change. Haiku handles quick
-    edits and Sonnet the bigger ones; a document can pin Opus.
+- Cloudflare D1 for documents, R2 for files
 
-## How to run
+## Run it locally
 
-You need Node, pnpm 12 and a Cloudflare account for deploys.
+You need Node and pnpm 12.
 
 ```bash
 pnpm install
-cp .dev.vars.example .dev.vars   # add ANTHROPIC_API_KEY; TYPESAFE_API_KEY is optional
+cp .dev.vars.example .dev.vars   # add ANTHROPIC_API_KEY (TYPESAFE_API_KEY is optional)
 pnpm db:migrate:local
 pnpm dev
 ```
 
-Then open the URL Vite prints, create a document and type `//` on a new line.
-Without `TYPESAFE_API_KEY`, a keyword heuristic stands in for the decision
-model. To use your own Cloudflare account, change `CF_ACCOUNT_ID` and
-`AI_GATEWAY_ID` in [wrangler.jsonc](wrangler.jsonc).
+Open the URL Vite prints, create a document, and type `//` on a new line.
+Without `TYPESAFE_API_KEY`, a keyword heuristic stands in for Jev. To use your
+own Cloudflare account, change `CF_ACCOUNT_ID` and `AI_GATEWAY_ID` in
+[wrangler.jsonc](wrangler.jsonc).
 
 ```bash
 pnpm test        # unit tests (Vitest)
 pnpm typecheck
 ```
 
-For a first deploy (D1 database, R2 bucket, AI Gateway, secrets), see
-[AGENTS.md](AGENTS.md#first-deploy).
+Deploying to Cloudflare is covered in [AGENTS.md](AGENTS.md#first-deploy).
 
 ## What I learned
 
-- **Never store what the user sees.** Section numbers are for people. Prompts
-  resolve "section 4" to a stable ID at the moment they fire, and everything
-  stored or sent to the AI uses IDs.
-- **Split deciding from writing.** A small, typed decision model ("which
-  sections, what kind of edit, how big a model") is cheaper and more
-  predictable than asking one LLM to interpret and rewrite at the same time.
-  Low confidence on the target makes the app ask "Which section?" instead of
-  guessing.
-- **Tracking your own typing is subtle.** TipTap input rules compare the
-  document right after a keystroke, so marking typed text as an edit has to
-  wait a microtask or Markdown shortcuts break.
+- **Store IDs, show numbers.** Anything a person sees (section 4) changes as
+  they write. Anything stored or sent to the AI uses stable IDs.
+- **Split deciding from writing.** A small typed model that picks the target
+  and the edit type is cheaper and more predictable than asking one LLM to
+  interpret and rewrite at once, and it knows when to ask instead of guess.
+- **Tracking your own typing is subtle.** TipTap's Markdown shortcuts compare
+  the document right after each keystroke, so marking typed text as an edit
+  has to wait a microtask.
 - **Clean up before anything leaves the editor.** Suggestion marks and the
   zero-width spaces the track-changes library inserts must be resolved before
-  Markdown export or before sending the AI a snapshot.
-- **Patch upstream bugs small.** [`patches/`](patches) holds a one-line fix for
-  a crash when accepting a deletion of the last block in the document.
+  export or before the AI reads the document.

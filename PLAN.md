@@ -1,4 +1,4 @@
-# Section Editor — MVP plan
+# Auto Report — MVP plan
 
 Source of truth: [docs/spec-v0.2.md](docs/spec-v0.2.md). Each milestone is shippable and testable on its own.
 

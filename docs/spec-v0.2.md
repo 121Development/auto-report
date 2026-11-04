@@ -1,4 +1,4 @@
-# Section Editor — Spec v0.2
+# Auto Report — Spec v0.2
 
 Oct 20, 2026 · @Erik
 

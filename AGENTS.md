@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Section Editor: a personal, Markdown-native writing app where every block is a numbered section that AI can act on. Spec: [docs/spec-v0.2.md](docs/spec-v0.2.md). Roadmap: [PLAN.md](PLAN.md).
+Auto Report: a personal, Markdown-native writing app where every block is a numbered section that AI can act on. Spec: [docs/spec-v0.2.md](docs/spec-v0.2.md). Roadmap: [PLAN.md](PLAN.md).
 
 ## Stack
 - TanStack Start (React, TypeScript) on Cloudflare Workers, pnpm 12
@@ -32,8 +32,8 @@ Section Editor: a personal, Markdown-native writing app where every block is a n
 
 ## First deploy
 1. `wrangler login`
-2. `wrangler d1 create section-editor` and put the id in `wrangler.jsonc`; `wrangler r2 bucket create section-editor-files`
-3. Create the AI Gateway `section-editor` in the Cloudflare dashboard; set secrets with `wrangler secret put`
+2. `wrangler d1 create auto-report` and put the id in `wrangler.jsonc`; `wrangler r2 bucket create auto-report-files`
+3. Create the AI Gateway `auto-report` in the Cloudflare dashboard; set secrets with `wrangler secret put`
 4. `pnpm db:migrate:remote`, then `pnpm run deploy`
 
 ## Invariants

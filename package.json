@@ -1,5 +1,5 @@
 {
-  "name": "section-editor",
+  "name": "auto-report",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.14.0",
@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "cf-typegen": "wrangler types",
-    "db:migrate:local": "wrangler d1 migrations apply section-editor --local",
-    "db:migrate:remote": "wrangler d1 migrations apply section-editor --remote",
+    "db:migrate:local": "wrangler d1 migrations apply auto-report --local",
+    "db:migrate:remote": "wrangler d1 migrations apply auto-report --remote",
     "deploy": "pnpm install --frozen-lockfile && pnpm audit --audit-level high && vite build && wrangler deploy"
   },
   "dependencies": {
