@@ -1,4 +1,4 @@
-# Section Editor
+# Auto Report
 
 A Markdown-native writing app where every block of text is a numbered section
 that AI can rewrite, expand, merge or check, with AI changes arriving as
@@ -8,7 +8,7 @@ tracked suggestions you accept or reject.
 engine, entry points, track changes, design pass). Context upload, templates,
 versions and export are next.
 
-![Section Editor: a document with numbered sections and an AI action icon in the gutter](docs/images/screenshot.png)
+![Auto Report: a document with numbered sections and an AI action icon in the gutter](docs/images/screenshot.png)
 
 ## What it does
 
