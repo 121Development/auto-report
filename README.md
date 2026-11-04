@@ -5,6 +5,19 @@ is a numbered section you can point the AI at ("shorten section 4", "merge 2
 to 5"), and every change it makes arrives as a tracked suggestion you accept
 or reject.
 
+Two kinds of model share the work, because deciding what to do and writing
+the text are different jobs:
+
+- **Jev** (TypeSafe's decision model) reads your instruction and a short
+  outline of the report, never the full text, and returns typed answers: what
+  kind of edit, which sections, and how big a model it needs. It is fast and
+  cheap, and its confidence scores let the app ask "Which section?" instead of
+  guessing.
+- **Claude** writes the change. **Haiku 5.5** handles small, local edits and
+  the chat that shapes a request, so most actions feel instant. **Sonnet 5.5**
+  takes rewrites that span sections or need more reasoning. **Opus 5.5** is
+  there for full drafts when you pin it in the document settings.
+
 **Status:** Work in progress. The editor, AI actions and track changes work
 today; context upload, templates, versions and Word/PDF export are next (see
 [PLAN.md](PLAN.md)).
@@ -33,13 +46,9 @@ time, and documents autosave (with an offline copy in the browser).
 
 ## How it works
 
-Each request goes through two models:
-
-1. **Jev** (a small decision model via `@tanstack/ai-typesafe`) works out what
-   kind of edit you want, which sections it touches, and how strong a model it
-   needs. If it isn't sure which section you mean, the app asks.
-2. **Claude** (via Cloudflare AI Gateway) writes the change: Haiku for quick
-   edits, Sonnet for bigger ones, or Opus if the document pins it.
+Every entry point builds the same request. Section numbers in it are parsed
+first, then Jev (via `@tanstack/ai-typesafe`) classifies it, then Claude (via
+Cloudflare AI Gateway) writes the edit, which comes back keyed by section ID.
 
 Section numbers are only for display. Each section has a hidden stable ID, and
 "section 4" is resolved to that ID the moment you press Enter, so edits land in
